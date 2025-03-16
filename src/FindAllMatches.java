@@ -12,17 +12,8 @@ public class FindAllMatches {
         // count frequency of each element
         for (var n : xs) fr[n]++;
         for (int i = 1; i < 101; i++) {
-            // equivalent:
-            /*
-            if (fr[i] > 0) {
-                rank[i] = x;
-                x++;
-        }   else {
-                rank[i] = x;
-    }
-             */
             rank[i] = fr[i] > 0 ? x++ : x;
-            System.out.println("rank[" + i + "]" + "= " + rank[i]);
+          //  System.out.println("rank[" + i + "]" + "= " + rank[i]);
         }
         // compress based on rank
         for (int i = 0; i < xs.length; i++)  {
@@ -35,11 +26,28 @@ public class FindAllMatches {
                 // insert key with empty list
                 bag.put(xs[i], new ArrayList<>());
             }
-            //
+            // otherwise insert given indices
             bag.get(xs[i]).add(i);
         }
         System.out.println("bag: " + bag);
 
+    }
+
+    // Method to calculate hash value using given summation formula:
+    // in replacement with Horner's method
+    private static long calculateHash(Map<Byte, List<Integer>> map, int a, int r) {
+        long hash = 0;
+        for (Map.Entry<Byte, List<Integer>> entry : map.entrySet()) {
+            //
+            byte rank = entry.getKey();
+            List<Integer> indices = entry.getValue();
+            // retrieve indices at given rank
+            for (int i : indices) {
+                int pos = i * a;
+                hash += (long) (rank + 1) * r * (pos + a);
+            }
+        }
+        return hash;
     }
 
     // Return a list of all *potential* matches (need to be checked).
@@ -59,11 +67,17 @@ public class FindAllMatches {
         // value -> is our associated indices
         var bag = new HashMap<Byte, List<Integer>>();
         compress(n, fr, rank, bag);
+        // calculate hash for needle (in replacement of horners')
+        // a = 1, r = 1
+        hash = calculateHash(bag, 1,1);
+        // using rolling hash function
         for (var b : n) hash = (((hash * (RAD % MOD)) % MOD) + b) % MOD;
+        // calculate exponent
         for (int p = n.length - 1; p > 0; p >>= 1) {
             if ((p & 1) == 1) bigrad = (bigrad * temp) % MOD;
             temp = (temp * temp) % MOD;
         }
+
         // Rabin-Karp
         //  k - hash of a part of haystack
         //      to be compared with 'hash' (for the needle (n))
@@ -71,7 +85,9 @@ public class FindAllMatches {
             Arrays.fill(rank, (byte) 0);
             Arrays.fill(fr, (byte) 0);
             System.arraycopy(h0, i, h, 0, n.length);
+            bag.clear();
             compress(h, fr, rank, bag);
+           // long k_ = calculateHash(rank, 0, n.length);
             long k = 0;
             for (var b : h) k = (k * (RAD % MOD) + b) % MOD;
             if (k == hash) result.add(i);
