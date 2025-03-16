@@ -2,17 +2,44 @@
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 
 public class FindAllMatches {
     // internal method only used in 'find'.
     // requires fr and rank to be zeroed.
-    private static void compress(byte[] xs, int[] fr, byte[] rank) {
+    private static void compress(byte[] xs, int[] fr, byte[] rank, Map<Byte, List<Integer>> bag) {
         byte x = 0;
+        // count frequency of each element
         for (var n : xs) fr[n]++;
-        for (int i = 1; i < 101; i++) rank[i] = fr[i] > 0 ? x++ : x;
-        for (int i = 0; i < xs.length; i++) xs[i] = rank[xs[i]];
+        for (int i = 1; i < 101; i++) {
+            // equivalent:
+            /*
+            if (fr[i] > 0) {
+                rank[i] = x;
+                x++;
+        }   else {
+                rank[i] = x;
+    }
+             */
+            rank[i] = fr[i] > 0 ? x++ : x;
+            System.out.println("rank[" + i + "]" + "= " + rank[i]);
+        }
+        // compress based on rank
+        for (int i = 0; i < xs.length; i++)  {
+            xs[i] = rank[xs[i]];
+            System.out.println("xs[" + i + "]" + "= " + xs[i]);
+            // check if contains no
+            // !bag.containsKey(xs[0])
+            // !bag.containsKey(0)
+            if (!bag.containsKey(xs[i])) {
+                // insert key with empty list
+                bag.put(xs[i], new ArrayList<>());
+            }
+            //
+            bag.get(xs[i]).add(i);
+        }
+        System.out.println("bag: " + bag);
+
     }
 
     // Return a list of all *potential* matches (need to be checked).
@@ -27,7 +54,11 @@ public class FindAllMatches {
         //  bigrad - RAD ^ (M - 1), where M is |n|
         var fr = new int[101];
         var rank = new byte[101];
-        compress(n, fr, rank);
+        // creating our bag
+        // key -> is our rank #
+        // value -> is our associated indices
+        var bag = new HashMap<Byte, List<Integer>>();
+        compress(n, fr, rank, bag);
         for (var b : n) hash = (((hash * (RAD % MOD)) % MOD) + b) % MOD;
         for (int p = n.length - 1; p > 0; p >>= 1) {
             if ((p & 1) == 1) bigrad = (bigrad * temp) % MOD;
@@ -40,7 +71,7 @@ public class FindAllMatches {
             Arrays.fill(rank, (byte) 0);
             Arrays.fill(fr, (byte) 0);
             System.arraycopy(h0, i, h, 0, n.length);
-            compress(h, fr, rank);
+            compress(h, fr, rank, bag);
             long k = 0;
             for (var b : h) k = (k * (RAD % MOD) + b) % MOD;
             if (k == hash) result.add(i);
