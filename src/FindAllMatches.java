@@ -18,7 +18,8 @@ public class FindAllMatches {
             bag.computeIfAbsent(a, _ -> new ArrayList<>());
             bag.get(a).add(i);
             //update rankToPositions array:
-            rankToPositions[xs[i]].add(i);
+            rankToPositions[a].add(i);
+           // System.out.println("rankToPositions: " + a + " " + rankToPositions[a]);
         }
     }
 
