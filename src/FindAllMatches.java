@@ -18,7 +18,7 @@ public class FindAllMatches {
             bag.computeIfAbsent(a, _ -> new ArrayList<>());
             bag.get(a).add(i);
             //update rankToPositions array:
-            rankToPositions[a].add(i);
+            rankToPositions[xs[i]].add(i);
         }
     }
 
@@ -59,6 +59,9 @@ public class FindAllMatches {
         var bag = new TreeMap<Byte, ArrayList<Integer>>();
         //
         ArrayList<Integer>[] rankToPositions = new ArrayList[101];
+        for (int i = 0; i < 101; i++) {
+            rankToPositions[i] = new ArrayList<>();
+        }
         System.out.println("compress needle");
 
         compress(n, fr, rank, bag, rankToPositions);
