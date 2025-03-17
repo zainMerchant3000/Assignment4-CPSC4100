@@ -7,55 +7,35 @@ import java.util.*;
 public class FindAllMatches {
     // internal method only used in 'find'.
     // requires fr and rank to be zeroed.
-    private static void compress(byte[] xs, int[] fr, byte[] rank, Map<Byte, List<Integer>> bag) {
+    private static void compress(byte[] xs, int[] fr, byte[] rank, TreeMap<Byte, ArrayList<Integer>> bag) {
         byte x = 0;
-        // count frequency of each element
         for (var n : xs) fr[n]++;
-        for (int i = 1; i < 101; i++) {
-            rank[i] = fr[i] > 0 ? x++ : x;
-          //  System.out.println("rank[" + i + "]" + "= " + rank[i]);
+        for (int i = 1; i < 101; i++) rank[i] = fr[i] > 0 ? x++ : x;
+        for (int i = 0; i < xs.length; i++) {
+            byte a = xs[i] = rank[xs[i]];
+            bag.computeIfAbsent(a, _ -> new ArrayList<>());
+            bag.get(a).add(i);
         }
-        // compress based on rank
-        for (int i = 0; i < xs.length; i++)  {
-            xs[i] = rank[xs[i]];
-            System.out.println("xs[" + i + "]" + "= " + xs[i]);
-            // check if contains no
-            // !bag.containsKey(xs[0])
-            // !bag.containsKey(0)
-            if (!bag.containsKey(xs[i])) {
-                // insert key with empty list
-                bag.put(xs[i], new ArrayList<>());
-            }
-            // otherwise insert given indices
-            bag.get(xs[i]).add(i);
-        }
-        System.out.println("bag: " + bag);
-
     }
 
-    // Method to calculate hash value using given summation formula:
-    // in replacement with Horner's method
-    private static long calculateHash(Map<Byte, List<Integer>> map, int a, int r) {
+    private static long calculateHash(TreeMap<Byte, ArrayList<Integer>> map, int baseindex) {
+        final long POWER = 3L;
+        final long A = 5L;
         long hash = 0;
-        for (Map.Entry<Byte, List<Integer>> entry : map.entrySet()) {
-            //
-            byte rank = entry.getKey();
-            List<Integer> indices = entry.getValue();
-            // retrieve indices at given rank
-            for (int i : indices) {
-                int pos = i * a;
-                hash += (long) (rank + 1) * r * (pos + a);
-            }
+        for (var entry : map.entrySet()) {
+            var rank = entry.getKey();
+            var indices = entry.getValue();
+            // FIXME: revise the computation to match the description in the PDF.
+            for (int i : indices) hash += (long) (rank + 1) * 3 * (i - baseindex + 1);
         }
         return hash;
     }
 
     // Return a list of all *potential* matches (need to be checked).
-    static ArrayList<Integer> find(byte[] n, byte[] h0) {
+    static ArrayList<Integer> find(byte[] n, byte[] h) {
         final int MOD = 101;
         final int RAD = 10193; // least prime greater than 101^2
-        long hash = 0, bigrad = 1, temp = RAD % MOD;
-        byte[] h = new byte[n.length];
+        long bigrad = 1, temp = RAD % MOD;
         var result = new ArrayList<Integer>();
         // initialize
         //  hash - hash of the needle (n)
@@ -65,34 +45,47 @@ public class FindAllMatches {
         // creating our bag
         // key -> is our rank #
         // value -> is our associated indices
-        var bag = new HashMap<Byte, List<Integer>>();
+        var bag = new TreeMap<Byte, ArrayList<Integer>>();
         compress(n, fr, rank, bag);
-        // calculate hash for needle (in replacement of horners')
-        // a = 1, r = 1
-        hash = calculateHash(bag, 1,1);
-        // using rolling hash function
-        for (var b : n) hash = (((hash * (RAD % MOD)) % MOD) + b) % MOD;
+        // needle hash
+        final var hash = calculateHash(bag, 0);
         // calculate exponent
         for (int p = n.length - 1; p > 0; p >>= 1) {
             if ((p & 1) == 1) bigrad = (bigrad * temp) % MOD;
             temp = (temp * temp) % MOD;
         }
-
-        // Rabin-Karp
-        //  k - hash of a part of haystack
-        //      to be compared with 'hash' (for the needle (n))
-        for (int i = 0; i < h0.length - n.length; i++) {
-            Arrays.fill(rank, (byte) 0);
-            Arrays.fill(fr, (byte) 0);
-            System.arraycopy(h0, i, h, 0, n.length);
-            bag.clear();
-            compress(h, fr, rank, bag);
-           // long k_ = calculateHash(rank, 0, n.length);
-            long k = 0;
-            for (var b : h) k = (k * (RAD % MOD) + b) % MOD;
-            if (k == hash) result.add(i);
-            // x_(i+1) = (x_i - t_i * R^(M-1)) * R + t_(i+M)
-            // k = ((k + MOD - h[i] * ((RAD % MOD) * RAD) % MOD) * RAD + h[i + n.length]) % MOD;
+        // modified Rabin-Karp with our bag model.
+        // this bag will now be repurposed for computing the hashes for
+        // the subarrays of the haystack (h).
+        bag = new TreeMap<>();
+        compress(h, fr, rank, bag);
+        for (int i = 0; i < h.length - n.length; i++) {
+            long k = calculateHash(bag, i);
+            if (k == hash) result.add(i); // Monte-Carlo (may be inaccurate).
+            final var hi = h[i];
+            // update bag
+            //  1. if old item (leftmost)
+            //      a. shares a rank with another item: do nothing.
+            //      b. if not: downrank all items greater than its rank.
+            //  2. if new item (rightmost)
+            //      a. shares: do nothing.
+            //      b. if not: uprank all items greater than its rank.
+            //  3. recompute the hash with new relative index (i) -> this will be done
+            //      automatically in the next iteration.
+            // FIXME: possible inefficiency.
+            // FIXME: do away with this complication by storing the y-coordinate
+            // FIXME: of each rank in a separate array: rank -> y
+            var ranks = bag.sequencedEntrySet().stream()
+                    .dropWhile(e -> e.getValue().getFirst() < hi)
+                    .map(Map.Entry::getKey).toList();
+            if (!ranks.isEmpty() && h[bag.get(ranks.getFirst()).getFirst()] != hi)
+                for (var r : ranks) bag.put((byte) (r - 1), bag.get(r));
+            final var hin = h[i + n.length];
+            ranks = bag.sequencedEntrySet().stream()
+                    .filter(e -> e.getValue().getFirst() >= hi)
+                    .map(Map.Entry::getKey).toList().reversed();
+            if (!ranks.isEmpty() && h[bag.get(ranks.getLast()).getFirst()] != hin)
+                for (var r : ranks) bag.put((byte) (r + 1), bag.get(r));
         }
         return result;
     }
@@ -107,7 +100,7 @@ public class FindAllMatches {
         in.close();
         var matches = find(needle, haystack);
         for (var match : matches)
-            // inaccuracy
+            // FIXME: Check the matches to see if they're actual matches.
             System.out.printf("%d ", match);
         System.out.println();
     }
