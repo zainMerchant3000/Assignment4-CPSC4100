@@ -5,215 +5,129 @@ import java.io.*;
 import java.util.*;
 
 public class FindAllMatches {
-    // internal method only used in 'find'.
-    // requires fr and rank to be zeroed.
-    private static void compress(byte[] xs, int[] fr, byte[] rank, TreeMap<Byte, ArrayList<Integer>> bag,ArrayList<Integer>[] rankToPositions ) {
-        byte x = 0;
-        for (var n : xs) fr[n]++;
-        for (int i = 1; i < 101; i++) rank[i] = fr[i] > 0 ? x++ : x;
-        for (int i = 0; i < xs.length; i++) {
-            byte a = xs[i] = rank[xs[i]];
-            System.out.println("xs[" + i + "]: " + xs[i]);
-            //System.out.println("a: " + a);
-            bag.computeIfAbsent(a, _ -> new ArrayList<>());
-            bag.get(a).add(i);
-            //update rankToPositions array:
-            rankToPositions[a].add(i);
-           // System.out.println("rankToPositions: " + a + " " + rankToPositions[a]);
-        }
-    }
+    // bag (rolling window)
+    static class B {
+        // rolling hash formula.
+        //  primary: sum of ("rank" + 1) to the power of POW * ("x-value" + 1)
+        //  for all points in the array / window in the array.
+        //  rolling, three terms added to old hash (hash_):
+        //      for the removed point:
+        //          - ("rank" + 1) to the power of POW * ("x-value" + 1)
+        //      for the other existing points:
+        //          - (sum of ("rank" + 1) th the power of POW * (number of points in the rank)
+        //      for the added point:
+        //          + ("would-be rank" + 1) to the power of POW * ("would-be x-value" + 1)
 
-    private static long calculateHash(TreeMap<Byte, ArrayList<Integer>> map, int baseindex) {
-        final long POWER = 3L;
-        final long A = 5L;
-        long hash = 0;
-        for (var entry : map.entrySet()) {
-            var rank = entry.getKey();
-            var indices = entry.getValue();
-            // FIXME: revise the computation to match the description in the PDF.
-            for (int i : indices) {
-                // Calculate (rank[i] + 1)^r
-                long rankTerm = (long)Math.pow(rank + 1, POWER);
-                // Calculate (pos[i] + a)
-                long posTerm = (i - baseindex + 1) + A;
-                // Multiply and add to hash
-                hash += rankTerm * posTerm;
+        // FIXME: choose better values for collision avoidance.
+        static long POW = 1, OFF = 1;
+
+        // sz: number of distinct y values (expect to grow or shrink)
+        int sz;
+        long hash_;
+        // rank to y
+        byte[] ys;
+        // y to rank or (-1) on nonexistence
+        byte[] ranks;
+        // rank to xs, ascending
+        List<Set<Integer>> xss;
+
+        // initialize bag given values and window length
+        // window will be positioned at index 0 and a hash will be computed for it.
+        public B(byte[] values, int length) {
+            // ~counting sort
+            var ex = new boolean[101];
+            ranks = new byte[101];
+            Arrays.fill(ranks, (byte) -1);
+            for (var v : values) ex[v] = true;
+            byte r = 0;
+            for (int y = 1; y < ex.length; y++)
+                if (ex[y]) ranks[y] = r++;
+            sz = r;
+            ys = new byte[sz];
+            xss = new ArrayList<>();
+            for (int i = 0; i < sz; i++) xss.add(new TreeSet<>());
+            r = 0;
+            for (int y = 1; y < ex.length; y++)
+                if (ex[y]) ys[r++] = (byte) y;
+            for (int x = 0; x < length; x++)
+                xss.get(ranks[values[x]]).add(x);
+            // compute initial hash
+            hash_ = 0;
+            for (r = 0; r < sz; r++) {
+                long mul = powp1(r), sum = 0;
+                for (var x : xss.get(r)) sum += x + OFF;
+                hash_ = mul * sum;
             }
         }
-        return hash;
-    }
 
-    // Return a list of all *potential* matches (need to be checked).
-    static ArrayList<Integer> find(byte[] n, byte[] h) {
-        final int MOD = 101;
-        final int RAD = 10193; // least prime greater than 101^2
-        long bigrad = 1, temp = RAD % MOD;
-        var result = new ArrayList<Integer>();
-        // initialize
-        //  hash - hash of the needle (n)
-        //  bigrad - RAD ^ (M - 1), where M is |n|
-        var fr = new int[101];
-        var rank = new byte[101];
-        // creating our bag
-        // key -> is our rank #
-        // value -> is our associated indices
-        var bag = new TreeMap<Byte, ArrayList<Integer>>();
-        //
-        ArrayList<Integer>[] rankToPositions = new ArrayList[101];
-        for (int i = 0; i < 101; i++) {
-            rankToPositions[i] = new ArrayList<>();
+        private static long powp1(long r) {
+            return (long) Math.pow(r + 1, POW);
         }
-        System.out.println("compress needle");
 
-        compress(n, fr, rank, bag, rankToPositions);
-        // needle hash
-        final var hash = calculateHash(bag, 0);
-        // calculate exponent
-        for (int p = n.length - 1; p > 0; p >>= 1) {
-            if ((p & 1) == 1) bigrad = (bigrad * temp) % MOD;
-            temp = (temp * temp) % MOD;
+        // get last stored hash.
+        // hash first computed at construction, then updated
+        // every time at roll. each roll call also gives hash.
+        public long hash() {
+            return hash_;
         }
-        // modified Rabin-Karp with our bag model.
-        // this bag will now be repurposed for computing the hashes for
-        // the subarrays of the haystack (h).
-        bag = new TreeMap<>();
-        System.out.println("compress haystack");
-        compress(h, fr, rank, bag, rankToPositions);
 
-        // During compression, store positions by rank
-        // i = rank
-        // rankToPositions[i] = y-coordinate of rank
-        for (int i = 0; i < h.length - n.length; i++) {
-            // calculate hash for current window
-            long k = calculateHash(bag, i);
-            if (k == hash) result.add(i); // Monte-Carlo (may be inaccurate).
-
-            // Skip window sliding if we've reached the end
-            if (i == h.length - n.length) break;
-
-            // Get elements at edges of window
-            byte removedElement = h[i];
-            byte addedElement = h[i + n.length];
-
-            //update for removing element from left side
-            // First remove this position from its rank
-            int removedPos = i;
-            byte removedRank = - 1;
-
-            // Find rank of removed element
-            for (byte r = 0; r < rankToPositions.length; r++) {
-                if (rankToPositions[r].contains(removedPos)) {
-                    removedRank = r;
-                    break;
+        // evict (x1, y1); append (x2, y2).
+        // x1 will always be the leftmost item in the window
+        // x2 will always be the new item, located just to the right of the window.
+        public void roll(int x1, int y1, int x2, int y2) {
+            // evict y1
+            var r1 = ranks[y1];
+            var y1xs = xss.get(r1);
+            var evict = y1xs.size() == 1;
+            hash_ -= powp1(r1) * OFF;
+            if (evict) {
+                // evict it...
+                y1xs.clear();
+                for (int r = r1; r < sz - 1; r++) {
+                    // TODO: CHECK
+                    ranks[ys[r] = ys[r + 1]]--;
+                    xss.set(r, xss.get(r + 1));
                 }
-            }
-            if (removedRank != -1) {
-                // Remove the position
-                rankToPositions[removedRank].remove(Integer.valueOf(removedPos));
-                bag.get(removedRank).remove(Integer.valueOf(removedPos));
-
-                // If rank becomes empty, remove it from bag
-                if (rankToPositions[removedRank].isEmpty()) {
-                    bag.remove(removedRank);
-
-                    // Decrease rank of all higher elements
-                    for (byte r = (byte)(removedRank + 1); r < 101; r++) {
-                        if (!rankToPositions[r].isEmpty()) {
-                            // Update both data structures
-                            rankToPositions[r-1] = new ArrayList<>(rankToPositions[r]);
-                            rankToPositions[r] = new ArrayList<>();
-
-                            // Move in the TreeMap
-                            bag.put((byte)(r-1), bag.get(r));
-                            bag.remove(r);
-                        }
+                // TODO: CHECK
+                ranks[ys[--sz]] = -1;
+                xss.set(sz, new TreeSet<>());
+            } else y1xs.remove(x1);
+            // update hash for the bulk that remains:
+            //  after we remove point 1, but
+            //  before we add point 2.
+            for (int r = 0; r < sz; r++)
+                hash_ -= powp1(evict && r >= r1 ? r + 1 : r) * xss.get(r).size();
+            // append y2
+            var r2 = ranks[y2];
+            if (r2 != -1) {
+                xss.get(ranks[y2]).add(x2);
+            } else {
+                // find the rank of the greatest y value less than y2
+                // could use a binary search ngl...
+                // anyway, its rank + 1 will be the rank it will have.
+                //
+                // or if y2 is the smallest one, then it'll have rank 0.
+                // so this way we find the would-be rank of y2.
+                for (int y = y2 - 1; y >= 0; y--) {
+                    if (ranks[y] != -1) {
+                        r2 = (byte) (ranks[y] + 1);
+                        break;
                     }
                 }
-            }
-
-            // Update for adding element on right side
-            // Find the rank this element should have
-            int addedPos = i + n.length;
-            byte valueToAdd = h[addedPos];
-            byte addedRank = 0;
-
-            // Find the appropriate rank
-            boolean rankExists = false;
-            for (byte r = 0; r < 101; r++) {
-                if (!rankToPositions[r].isEmpty() && h[rankToPositions[r].get(0)] == valueToAdd) {
-                    addedRank = r;
-                    rankExists = true;
-                    break;
+                if (r2 == -1) r2 = 0;
+                // TODO: CHECK
+                for (int r = sz++; r > r2; r--) {
+                    ranks[ys[r] = ys[r - 1]]++;
+                    xss.set(r2, xss.get(r - 1));
                 }
-                if (!rankToPositions[r].isEmpty()) {
-                    addedRank = (byte)(r + 1); // Take the next rank
-                }
+                // TODO: CHECK
+                ranks[ys[r2]] = -1;
+                xss.set(r2, new TreeSet<>());
             }
-
-            // If new value doesn't match existing rank, increase ranks as needed
-            if (!rankExists) {
-                // Increase rank of all equal or higher elements
-                for (byte r = (byte)(addedRank); r < 101; r++) {
-                    if (!rankToPositions[r].isEmpty()) {
-                        // Move to higher rank in both structures
-                        rankToPositions[r+1] = new ArrayList<>(rankToPositions[r]);
-                        rankToPositions[r] = new ArrayList<>();
-
-                        // Move in the TreeMap
-                        bag.put((byte)(r+1), bag.get(r));
-                        bag.remove(r);
-                    }
-                }
-            }
-
-            // Add the new element
-            rankToPositions[addedRank].add(addedPos);
-            bag.computeIfAbsent(addedRank, _ -> new ArrayList<>());
-            bag.get(addedRank).add(addedPos);
-
-
-            final var hi = h[i];
-            // update bag
-            //  1. if old item (leftmost)
-            //      a. shares a rank with another item: do nothing.
-            //      b. if not: downrank all items greater than its rank.
-            //  2. if new item (rightmost)
-            //      a. shares: do nothing.
-            //      b. if not: uprank all items greater than its rank.
-            //  3. recompute the hash with new relative index (i) -> this will be done
-            //      automatically in the next iteration.
-            // FIXME: possible inefficiency.
-            // FIXME: do away with this complication by storing the y-coordinate
-            // FIXME: of each rank in a separate array: rank -> y
-            // Create an array to map ranks to their positions
-
-            /*
-            // bag.sequencedSet().stream() -> maps each rank to list of positions where that rank appears
-            // .dropwhile(e-> e.getValue().getFirst() < hi) -> skip entries whose position < h[i] -> value being removed from
-            // left side of window
-            var ranks = bag.sequencedEntrySet().stream()
-                    .dropWhile(e -> e.getValue().getFirst() < hi)
-                    .map(Map.Entry::getKey).toList();
-            // checking if element being removed has unique rank
-            //   ->
-             // h[bag.get(ranks.getFirst()).getFirst()] != hi -> check if position at lowest effected rank is different
-             // than value being removed
-
-            // for (var r: ranks) bag.put((byte) (r - 1), bag.get(r)) -> move position by one rank for each affected rank
-            if (!ranks.isEmpty() && h[bag.get(ranks.getFirst()).getFirst()] != hi)
-                for (var r : ranks) bag.put((byte) (r - 1), bag.get(r));
-            // we are getting the new value (value in new part of sliding window)
-            final var hin = h[i + n.length];
-            ranks = bag.sequencedEntrySet().stream()
-                    .filter(e -> e.getValue().getFirst() >= hi)
-                    .map(Map.Entry::getKey).toList().reversed();
-            if (!ranks.isEmpty() && h[bag.get(ranks.getLast()).getFirst()] != hin)
-                for (var r : ranks) bag.put((byte) (r + 1), bag.get(r));
-                */
+            // this time we add instead of subtract since we're adding this point.
+            // TODO: CHECK
+            hash_ += powp1(ranks[y2]) * (x2 - x1 - 1 + OFF);
         }
-
-
-        return result;
     }
 
     public static void main(String[] args) throws IOException {
@@ -224,11 +138,15 @@ public class FindAllMatches {
         for (int i = 0; i < N; i++) haystack[i] = (byte) Integer.parseInt(in.readLine());
         for (int i = 0; i < M; i++) needle[i] = (byte) Integer.parseInt(in.readLine());
         in.close();
-        var matches = find(needle, haystack);
-        for (var match : matches)
-            // FIXME: Check the matches to see if they're actual matches.
-            System.out.printf("%d ", match);
-        System.out.println();
+        var bag = new B(needle, M);
+        var needleHash = bag.hash();
+        bag = new B(haystack, M); // still needle's length, so M, not N.
+        for (var i = 0; i < N - M; i++) {
+            var im = i + M;
+            if (bag.hash() == needleHash && Arrays.compare(haystack, i, im, needle, 0, M) == 0)
+                System.out.printf("%d ", i);
+            bag.roll(i, haystack[i], im, haystack[im]);
+        }
     }
 }
 
