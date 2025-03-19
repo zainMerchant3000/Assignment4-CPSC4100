@@ -35,20 +35,32 @@ public class FindAllMatches {
         // window will be positioned at index 0 and a hash will be computed for it.
         public B(byte[] values, int length) {
             // ~counting sort
+            // array to track which y-values exist
             var ex = new boolean[101];
             ranks = new byte[101];
             Arrays.fill(ranks, (byte) -1);
+            // marking y-values
             for (var v : values) ex[v] = true;
+
             byte r = 0;
-            for (int y = 1; y < ex.length; y++)
-                if (ex[y]) ranks[y] = r++;
+            for (int y = 1; y < ex.length; y++) {
+                if (ex[y]) {
+                    ranks[y] = r++;
+                    System.out.println("ranks[" + y + "] = " + ranks[y]);
+                }
+            }
             sz = r;
             ys = new byte[sz];
+            // creating bag
             xss = new ArrayList<>();
             for (int i = 0; i < sz; i++) xss.add(new TreeSet<>());
             r = 0;
-            for (int y = 1; y < ex.length; y++)
-                if (ex[y]) ys[r++] = (byte) y;
+            for (int y = 1; y < ex.length; y++) {
+                if (ex[y]) {
+                    ys[r++] = (byte) y;
+                    System.out.println("ys[" + r + "] = " + ys[r]);
+                }
+            }
             for (int x = 0; x < length; x++)
                 xss.get(ranks[values[x]]).add(x);
             // compute initial hash
