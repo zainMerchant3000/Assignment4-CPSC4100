@@ -101,7 +101,7 @@ public class FindAllMatches {
             var y1xs = xss.get(r1);
             System.out.println("y1xs: " + y1xs);
             // check if rank has only 1 element (determine whether we need to completly remove
-            // rank
+            // rank (y-value)
             var evict = y1xs.size() == 1;
             // update hash value for removal of rank
             hash_ -= powp1(r1) * OFF;
@@ -112,16 +112,24 @@ public class FindAllMatches {
                 for (int r = r1; r < sz - 1; r++) {
                     // TODO: CHECK
                     ranks[ys[r] = ys[r + 1]]--;
+                    System.out.println("ys[" + r + "] " + ys[r]);
                     xss.set(r, xss.get(r + 1));
                 }
                 // TODO: CHECK
                 ranks[ys[--sz]] = -1;
                 xss.set(sz, new TreeSet<>());
-            } else y1xs.remove(x1); // otherwise can just remove point
+            } else {
+                System.out.println("simply just remove point");
+                y1xs.remove(x1); // otherwise can just remove point
+                System.out.println("y1xs: " + y1xs);
+        }
             // update hash for the bulk that remains:
             //  after we remove point 1, but
             //  before we add point 2.
             for (int r = 0; r < sz; r++)
+                // evict -> determine whether rank should be adjusted
+                // r >= r1 -> current rank (r) greater or equal to rank evicted (r1)
+                // evict && r >= r1 -> eviction and current rank larger than rank evicted
                 hash_ -= powp1(evict && r >= r1 ? r + 1 : r) * xss.get(r).size();
             // append y2
             var r2 = ranks[y2];
