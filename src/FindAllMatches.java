@@ -46,7 +46,7 @@ public class FindAllMatches {
             for (int y = 1; y < ex.length; y++) {
                 if (ex[y]) {
                     ranks[y] = r++;
-                    System.out.println("ranks[" + y + "] = " + ranks[y]);
+                   // System.out.println("ranks[" + y + "] = " + ranks[y]);
                 }
             }
             sz = r;
@@ -54,15 +54,22 @@ public class FindAllMatches {
             // creating bag
             xss = new ArrayList<>();
             for (int i = 0; i < sz; i++) xss.add(new TreeSet<>());
+            // mapping ranks to values:
+            // ex)
             r = 0;
             for (int y = 1; y < ex.length; y++) {
                 if (ex[y]) {
                     ys[r++] = (byte) y;
-                    System.out.println("ys[" + r + "] = " + ys[r]);
+                   // System.out.println("ys[" + (r-1) + "] = " + ys[r-1]);
                 }
             }
-            for (int x = 0; x < length; x++)
+            for (int x = 0; x < length; x++) {
+                // values[x] = values[0] = 1
                 xss.get(ranks[values[x]]).add(x);
+               // System.out.println("xss.get(ranks[" + x + "])");
+                //System.out.println(xss.get(ranks[values[x]]));
+               // System.out.println(xss);
+            }
             // compute initial hash
             hash_ = 0;
             for (r = 0; r < sz; r++) {
@@ -87,13 +94,20 @@ public class FindAllMatches {
         // x1 will always be the leftmost item in the window
         // x2 will always be the new item, located just to the right of the window.
         public void roll(int x1, int y1, int x2, int y2) {
+            System.out.println("x1: " + x1 + ", y1: " + y1 + ", x2: " + x2 + ", y2: " + y2);
             // evict y1
             var r1 = ranks[y1];
+            System.out.println("ranks[13:] = " + ranks[13]);
             var y1xs = xss.get(r1);
+            System.out.println("y1xs: " + y1xs);
+            // check if rank has only 1 element (determine whether we need to completly remove
+            // rank
             var evict = y1xs.size() == 1;
+            // update hash value for removal of rank
             hash_ -= powp1(r1) * OFF;
             if (evict) {
                 // evict it...
+                System.out.println("evicting");
                 y1xs.clear();
                 for (int r = r1; r < sz - 1; r++) {
                     // TODO: CHECK
@@ -103,7 +117,7 @@ public class FindAllMatches {
                 // TODO: CHECK
                 ranks[ys[--sz]] = -1;
                 xss.set(sz, new TreeSet<>());
-            } else y1xs.remove(x1);
+            } else y1xs.remove(x1); // otherwise can just remove point
             // update hash for the bulk that remains:
             //  after we remove point 1, but
             //  before we add point 2.
@@ -152,9 +166,11 @@ public class FindAllMatches {
         in.close();
         var bag = new B(needle, M);
         var needleHash = bag.hash();
-        bag = new B(haystack, M); // still needle's length, so M, not N.
+        bag = new B(haystack, M); // still needle's length, so M, not N. (processing based on window approach)
         for (var i = 0; i < N - M; i++) {
             var im = i + M;
+            // Arrays.compare -> different arrays can produce the same hash value (collisions)
+            //
             if (bag.hash() == needleHash && Arrays.compare(haystack, i, im, needle, 0, M) == 0)
                 System.out.printf("%d ", i);
             bag.roll(i, haystack[i], im, haystack[im]);
