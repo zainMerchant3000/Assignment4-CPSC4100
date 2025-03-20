@@ -19,7 +19,7 @@ public class FindAllMatches {
         //          + ("would-be rank" + 1) to the power of POW * ("would-be x-value" + 1)
 
         // FIXME: choose better values for collision avoidance.
-        static long POW = 1, OFF = 1;
+        static long POW = 2, OFF = 2;
 
         // sz: number of distinct y values (expect to grow or shrink)
         int sz;
@@ -106,8 +106,9 @@ public class FindAllMatches {
             var evict = y1xs.size() == 1;
             System.out.println("Should evict: " + evict);
             // update hash value for removal of rank
+            long previousHash = hash_;
             hash_ -= powp1(r1) * OFF;
-            System.out.println("Updated hash_: " + hash_);
+            System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
             if (evict) {
                 System.out.println("Evicting entire rank " + r1 + " for y1 = " + y1);
                 // evict it...
@@ -134,19 +135,30 @@ public class FindAllMatches {
             // update hash for the bulk that remains:
             //  after we remove point 1, but
             //  before we add point 2.
-            for (int r = 0; r < sz; r++)
+            for (int r = 0; r < sz; r++) {
                 // evict -> determine whether rank should be adjusted
                 // r >= r1 -> current rank (r) greater or equal to rank evicted (r1)
                 // evict && r >= r1 -> eviction and current rank larger than rank evicted
                 // if(evict && r>= r1 == true) r+1;
                 // if(evict && r >= r1 == false) r;
                 // xss.get(r).size(); -> getting number of
+                long pHash = hash_;
+                System.out.println("Evict check for r = " + r + " (ranks comparison) -> evict = " + evict);
+                System.out.println("Rank adjustment logic for r = " + r + ": " + (evict && r >= r1 ? r + 1 : r));
                 hash_ -= powp1(evict && r >= r1 ? r + 1 : r) * xss.get(r).size();
+                System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
+            }
             // append y2
             var r2 = ranks[y2];
+            System.out.println("Appending y2 = " + y2 + " with initial rank r2: " + r2);
+            //
             if (r2 != -1) {
+                System.out.println("Rank already exists for y2 = " + y2 + ", adding x2 = " + x2 + " to xss at rank r2");
                 xss.get(ranks[y2]).add(x2);
+                System.out.println("Updated xss for rank r2: " + xss.get(ranks[y2]));
             } else {
+                // Rank does not exist yet for y2; find the appropriate rank for y2
+                System.out.println("No existing rank for y2 = " + y2 + ", finding appropriate rank.");
                 // find the rank of the greatest y value less than y2
                 // could use a binary search ngl...
                 // anyway, its rank + 1 will be the rank it will have.
@@ -160,18 +172,27 @@ public class FindAllMatches {
                     }
                 }
                 if (r2 == -1) r2 = 0;
+                System.out.println("Calculated rank for y2 = " + y2 + ": " + r2);
                 // TODO: CHECK
+                // shift ranks and adjust xss to insert y2 at the correct position
+                System.out.println("Shifting ranks and xss to insert y2 at rank r2: " + r2);
                 for (int r = sz++; r > r2; r--) {
-                    ranks[ys[r] = ys[r - 1]]++;
-                    xss.set(r2, xss.get(r - 1));
+                    ranks[ys[r] = ys[r - 1]]++; // shift y-values and adjust the ranks
+                    System.out.println("Shifted ys[" + r + "] = " + ys[r] + ", updated ranks[" + ys[r] + "] = " + ranks[ys[r]]);
+                    xss.set(r2, xss.get(r - 1)); // shift xss sets
+                    System.out.println("Shifted xss[" + r2 + "] = " + xss.get(r2));
                 }
                 // TODO: CHECK
-                ranks[ys[r2]] = -1;
-                xss.set(r2, new TreeSet<>());
+                // final adjustments after shift
+                ranks[ys[r2]] = -1; // mark rank for inserted y-val
+                xss.set(r2, new TreeSet<>()); // initialize set for new rank
+                System.out.println("Final rank and xss after insertion of y2: " + Arrays.toString(ranks) + ", " + xss);
             }
             // this time we add instead of subtract since we're adding this point.
             // TODO: CHECK
+            System.out.println("Adding point (x2 = " + x2 + ", y2 = " + y2 + ") to hash_.");
             hash_ += powp1(ranks[y2]) * (x2 - x1 - 1 + OFF);
+            System.out.println("Updated hash after adding point: " + hash_);
         }
     }
 
