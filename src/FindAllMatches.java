@@ -21,6 +21,9 @@ public class FindAllMatches {
         // FIXME: choose better values for collision avoidance.
         static long POW = 2, OFF = 2;
 
+        long p = 31;
+        long q = 1000000007;  // Modulus (large prime number to avoid overflow)
+
         // sz: number of distinct y values (expect to grow or shrink)
         int sz;
         long hash_;
@@ -46,7 +49,7 @@ public class FindAllMatches {
             for (int y = 1; y < ex.length; y++) {
                 if (ex[y]) {
                     ranks[y] = r++;
-                   // System.out.println("ranks[" + y + "] = " + ranks[y]);
+                    // System.out.println("ranks[" + y + "] = " + ranks[y]);
                 }
             }
             sz = r;
@@ -60,22 +63,26 @@ public class FindAllMatches {
             for (int y = 1; y < ex.length; y++) {
                 if (ex[y]) {
                     ys[r++] = (byte) y;
-                   // System.out.println("ys[" + (r-1) + "] = " + ys[r-1]);
+                    // System.out.println("ys[" + (r-1) + "] = " + ys[r-1]);
                 }
             }
             for (int x = 0; x < length; x++) {
                 // values[x] = values[0] = 1
                 xss.get(ranks[values[x]]).add(x);
-               // System.out.println("xss.get(ranks[" + x + "])");
+                // System.out.println("xss.get(ranks[" + x + "])");
                 //System.out.println(xss.get(ranks[values[x]]));
-               // System.out.println(xss);
+                // System.out.println(xss);
             }
             // compute initial hash
+            // will optimize this:
+
             hash_ = 0;
             for (r = 0; r < sz; r++) {
                 long mul = powp1(r), sum = 0;
                 for (var x : xss.get(r)) sum += x + OFF;
-                hash_ = mul * sum;
+                // Accumulate hash using Modular arithmetic:
+                // Accumulate the hash with modular arithmetic
+                hash_ = (hash_ + (mul * sum) % q) % q;  // Accumulate while applying modulus to avoid overflow
             }
         }
 
@@ -99,6 +106,16 @@ public class FindAllMatches {
             System.out.println("x2 (new index): " + x2 + ", y2 (new value): " + y2);
             // evict y1
             var r1 = ranks[y1];
+            if (r1 < 0 || r1 >= xss.size()) {
+                // Instead of skipping recalculate the rank
+                // This is a recovery mechanism
+                for (int r = 0; r < sz; r++) {
+                    if (ys[r] == y1) {
+                        r1 = (byte)r;
+                        break;
+                    }
+                }
+            }
             var y1xs = xss.get(r1);
             System.out.println("Current xss for rank " + r1 + " (y1 = " + y1 + "): " + y1xs);
             // check if rank has only 1 element (determine whether we need to completly remove
@@ -111,31 +128,43 @@ public class FindAllMatches {
             System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
             if (evict) {
                 System.out.println("Evicting entire rank " + r1 + " for y1 = " + y1);
-                // evict it...
+                // evict rank
                 y1xs.clear();
                 System.out.println("Cleared xss for rank " + r1 + ": " + y1xs);
                 for (int r = r1; r < sz - 1; r++) {
                     // TODO: CHECK
+                    if (r >= ys.length || r + 1 >= ys.length) {
+                        System.out.println("Invalid index during rank shifting. Skipping shift.");
+                        break;
+                    }
                     ranks[ys[r] = ys[r + 1]]--;
                     System.out.println("Shifting y-values and ranks:");
-                    System.out.println("ys[" + r + "] " + ys[r]+ ", ranks[" + ys[r] + "] = " + ranks[ys[r]]);
+                    System.out.println("ys[" + r + "] " + ys[r] + ", ranks[" + ys[r] + "] = " + ranks[ys[r]]);
                     xss.set(r, xss.get(r + 1));
                     System.out.println("xss[" + r + "] = " + xss.get(r));
 
                 }
                 // TODO: CHECK
-                ranks[ys[--sz]] = -1; // remove last rank
-                xss.set(sz, new TreeSet<>());
-                System.out.println("Rank and xss after eviction: " + Arrays.toString(ranks) + ", " + xss);
+                // remove last rank
+                if (sz > 0) {
+                    ranks[ys[--sz]] = -1; // remove last rank
+                    xss.set(sz, new TreeSet<>());
+                    System.out.println("Rank and xss after eviction: " + Arrays.toString(ranks) + ", " + xss);
+                }
             } else {
                 System.out.println("Removing point from existing rank");
                 y1xs.remove(x1); // otherwise can just remove point
                 System.out.println("Updated xss for rank " + r1 + " after removal: " + y1xs);
-        }
+            }
             // update hash for the bulk that remains:
             //  after we remove point 1, but
             //  before we add point 2.
             for (int r = 0; r < sz; r++) {
+                if (r >= xss.size()) {
+                    System.out.println("Invalid rank access: " + r + ". Skipping.");
+                    continue; // Skip invalid rank access
+                }
+
                 // evict -> determine whether rank should be adjusted
                 // r >= r1 -> current rank (r) greater or equal to rank evicted (r1)
                 // evict && r >= r1 -> eviction and current rank larger than rank evicted
@@ -144,8 +173,9 @@ public class FindAllMatches {
                 // xss.get(r).size(); -> getting number of
                 long pHash = hash_;
                 System.out.println("Evict check for r = " + r + " (ranks comparison) -> evict = " + evict);
-                System.out.println("Rank adjustment logic for r = " + r + ": " + (evict && r >= r1 ? r + 1 : r));
-                hash_ -= powp1(evict && r >= r1 ? r + 1 : r) * xss.get(r).size();
+              //  System.out.println("Rank adjustment logic for r = " + r + ": " + (evict && r >= r1 ? r + 1 : r));
+               // hash_ -= powp1(evict && r >= r1 ? r + 1 : r) * xss.get(r).size();
+                hash_ -= powp1(r) * xss.get(r).size();
                 System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
             }
             // append y2
@@ -177,6 +207,10 @@ public class FindAllMatches {
                 // shift ranks and adjust xss to insert y2 at the correct position
                 System.out.println("Shifting ranks and xss to insert y2 at rank r2: " + r2);
                 for (int r = sz++; r > r2; r--) {
+                    if (r < 0 || r - 1 < 0) {
+                        System.out.println("Invalid index during shifting ranks. Skipping.");
+                        break;
+                    }
                     ranks[ys[r] = ys[r - 1]]++; // shift y-values and adjust the ranks
                     System.out.println("Shifted ys[" + r + "] = " + ys[r] + ", updated ranks[" + ys[r] + "] = " + ranks[ys[r]]);
                     xss.set(r2, xss.get(r - 1)); // shift xss sets
@@ -210,9 +244,23 @@ public class FindAllMatches {
         for (var i = 0; i < N - M; i++) {
             var im = i + M;
             // Arrays.compare -> different arrays can produce the same hash value (collisions)
-            //
-            if (bag.hash() == needleHash && Arrays.compare(haystack, i, im, needle, 0, M) == 0)
+            System.out.println("needleHash: " + needleHash);
+            int currentHash = (int) bag.hash();
+            System.out.println("bag.hash(): " + currentHash);
+            // Compare the arrays and print the result of Arrays.compare
+            int compareResult = Arrays.compare(haystack, i, im, needle, 0, M);
+            System.out.println("Arrays.compare result: " + compareResult);  // Debug print statement
+            // The if condition checking hash and array comparison
+            if (currentHash == needleHash && compareResult == 0) {
                 System.out.printf("%d ", i);
+            }
+            /*
+            if (bag.hash() == needleHash && Arrays.compare(haystack, i, im, needle, 0, M) == 0) {
+                System.out.printf("%d ", i);
+            }
+
+             */
+            System.out.println("calling bag.roll");
             bag.roll(i, haystack[i], im, haystack[im]);
         }
     }
