@@ -124,7 +124,8 @@ public class FindAllMatches {
             System.out.println("Should evict: " + evict);
             // update hash value for removal of rank
             long previousHash = hash_;
-            hash_ -= powp1(r1) * OFF;
+            hash_ = (hash_ - (powp1(r1) * y1xs.size()) % q + q) % q; // Subtract the contribution of the evicted rank
+          //  hash_ -= powp1(r1) * OFF;
             System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
             if (evict) {
                 System.out.println("Evicting entire rank " + r1 + " for y1 = " + y1);
@@ -175,8 +176,11 @@ public class FindAllMatches {
                 System.out.println("Evict check for r = " + r + " (ranks comparison) -> evict = " + evict);
               //  System.out.println("Rank adjustment logic for r = " + r + ": " + (evict && r >= r1 ? r + 1 : r));
                // hash_ -= powp1(evict && r >= r1 ? r + 1 : r) * xss.get(r).size();
-                hash_ -= powp1(r) * xss.get(r).size();
-                System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
+                // Subtract contribution for each rank after eviction
+                hash_ = (hash_ - (powp1(r) * xss.get(r).size()) % q + q) % q;
+                System.out.println("Updated hash after subtraction for rank " + r + ": " + hash_);
+               // hash_ -= powp1(r) * xss.get(r).size();
+               // System.out.println("Updated hash after subtraction (before addition of y2): " + previousHash + " -> " + hash_);
             }
             // append y2
             var r2 = ranks[y2];
@@ -225,7 +229,8 @@ public class FindAllMatches {
             // this time we add instead of subtract since we're adding this point.
             // TODO: CHECK
             System.out.println("Adding point (x2 = " + x2 + ", y2 = " + y2 + ") to hash_.");
-            hash_ += powp1(ranks[y2]) * (x2 - x1 - 1 + OFF);
+            hash_ = (hash_ + (powp1(ranks[y2]) * (x2 - x1 - 1 + OFF)) % q) % q;
+           // hash_ += powp1(ranks[y2]) * (x2 - x1 - 1 + OFF);
             System.out.println("Updated hash after adding point: " + hash_);
         }
     }
@@ -250,21 +255,25 @@ public class FindAllMatches {
             // Compare the arrays and print the result of Arrays.compare
             int compareResult = Arrays.compare(haystack, i, im, needle, 0, M);
             System.out.println("Arrays.compare result: " + compareResult);  // Debug print statement
-
+            /*
             if (currentHash == needleHash) {
                 System.out.printf("%d ", i);
             }
-             /*
+
+             */
+
             // The if condition checking hash and array comparison
             if (currentHash == needleHash && compareResult == 0) {
                 System.out.printf("%d ", i);
             }
-
+            /*
             if (bag.hash() == needleHash && Arrays.compare(haystack, i, im, needle, 0, M) == 0) {
                 System.out.printf("%d ", i);
             }
 
              */
+
+
             System.out.println("calling bag.roll");
             bag.roll(i, haystack[i], im, haystack[im]);
         }
