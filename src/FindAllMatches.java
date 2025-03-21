@@ -250,11 +250,16 @@ public class FindAllMatches {
             // Compare the arrays and print the result of Arrays.compare
             int compareResult = Arrays.compare(haystack, i, im, needle, 0, M);
             System.out.println("Arrays.compare result: " + compareResult);  // Debug print statement
+
+            if (currentHash == needleHash) {
+                System.out.printf("%d ", i);
+            }
+             /*
             // The if condition checking hash and array comparison
             if (currentHash == needleHash && compareResult == 0) {
                 System.out.printf("%d ", i);
             }
-            /*
+
             if (bag.hash() == needleHash && Arrays.compare(haystack, i, im, needle, 0, M) == 0) {
                 System.out.printf("%d ", i);
             }
