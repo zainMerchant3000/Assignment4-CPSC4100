@@ -107,6 +107,7 @@ public class FindAllMatches {
             // evict y1
             var r1 = ranks[y1];
             if (r1 < 0 || r1 >= xss.size()) {
+                System.out.println("recalculate rank");
                 // Instead of skipping recalculate the rank
                 // This is a recovery mechanism
                 for (int r = 0; r < sz; r++) {
@@ -123,6 +124,7 @@ public class FindAllMatches {
             var evict = y1xs.size() == 1;
             System.out.println("Should evict: " + evict);
             // update hash value for removal of rank
+            System.out.println(" hash before subtraction (before addition of y2 and before contribution to evicted rank): " + hash_);
             long previousHash = hash_;
             hash_ = (hash_ - (powp1(r1) * y1xs.size()) % q + q) % q; // Subtract the contribution of the evicted rank
           //  hash_ -= powp1(r1) * OFF;
@@ -229,10 +231,14 @@ public class FindAllMatches {
             // this time we add instead of subtract since we're adding this point.
             // TODO: CHECK
             System.out.println("Adding point (x2 = " + x2 + ", y2 = " + y2 + ") to hash_.");
-            hash_ = (hash_ + (powp1(ranks[y2]) * (x2 - x1 - 1 + OFF)) % q) % q;
+           // hash_ = (hash_ + (powp1(ranks[y2]) * (x2 - x1 - 1 + OFF)) % q) % q;
+            hash_ += (powp1(ranks[y2]) * (x2 - x1 - 1 + OFF)) % q % q;
            // hash_ += powp1(ranks[y2]) * (x2 - x1 - 1 + OFF);
             System.out.println("Updated hash after adding point: " + hash_);
+
+
         }
+
     }
 
     public static void main(String[] args) throws IOException {
@@ -252,6 +258,9 @@ public class FindAllMatches {
             System.out.println("needleHash: " + needleHash);
             int currentHash = (int) bag.hash();
             System.out.println("bag.hash(): " + currentHash);
+
+            // Print i, haystack[i], im, and haystack[im] to trace these values for debugging
+            System.out.println("i: " + i + ", haystack[i]: " + haystack[i] + ", im: " + im + ", haystack[im]: " + haystack[im]);
             // Compare the arrays and print the result of Arrays.compare
             int compareResult = Arrays.compare(haystack, i, im, needle, 0, M);
             System.out.println("Arrays.compare result: " + compareResult);  // Debug print statement
