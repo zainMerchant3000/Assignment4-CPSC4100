@@ -153,7 +153,10 @@ public class FindAllMatches {
                 // new y value already in window.
                 xss.get(ranks[y2]).add(x2);
             // 3rd term.
-            plushash(x2 - x1 - 1 + OFF);
+            r2 = ranks[y1]; // re-fetch r2 due to update in rank
+            long newPointTerm = hmul(r2) * ((x2-x1-1)+ OFF);
+            plushash(newPointTerm);
+           // plushash(x2 - x1 - 1 + OFF);
             System.out.print("");
         }
     }
