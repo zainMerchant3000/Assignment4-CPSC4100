@@ -175,6 +175,7 @@ public class FindAllMatches {
         for (var i = 0; i < N - M; i++) {
             var im = i + M;
             int currentHash = (int) bag.hash();
+            System.out.println(currentHash);
             if (currentHash == needleHash)
 //                if (Arrays.compare(haystack, i, im, needle, 0, M) == 0)
                     System.out.printf("!%d ", i);
